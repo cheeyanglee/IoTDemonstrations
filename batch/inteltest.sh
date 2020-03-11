@@ -6,9 +6,9 @@
 # user defined settings
 # ----------------------
 
-BUILD=warrior
+BUILD=master
 MACHINETYPE=intel-corei7-64
-TARGETDIR=/mnt/$AZ_BATCH_JOB_ID/$AZ_BATCH_TASK_ID
+TARGETDIR=/data/3TB/bug13727-master/
 BUILDIMAGE=core-image-sato
 # note we have a different storage container for each job, and we have to convert it to lower case
 # for storage to work set the environment vars: AZURE_STORAGE_ACCOUNT & AZURE_STORAGE_KEY
@@ -46,11 +46,10 @@ cd $TARGETDIR/source
 
 git clone -b $BUILD http://git.yoctoproject.org/git/poky
 git clone -b $BUILD http://git.yoctoproject.org/git/meta-intel
-git clone -b $BUILD https://github.com/Azure/meta-iotedge.git
-git clone -b $BUILD git://git.yoctoproject.org/meta-security
+git clone -b $BUILD https://git.yoctoproject.org/git/meta-security
 
 # adding iotedge stuff
-git clone -b $BUILD git://git.yoctoproject.org/meta-virtualization
+git clone -b $BUILD https://git.yoctoproject.org/git/meta-virtualization
 
 # test fix for kernel modifications for intel
 # cp meta-virtualization/recipes-kernel/linux/linux-yocto_4.19.bbappend meta-virtualization/recipes-kernel/linux/linux-intel_4.19.bbappend 
@@ -58,10 +57,6 @@ git clone -b $BUILD git://git.yoctoproject.org/meta-virtualization
 
 git clone -b master git://github.com/meta-rust/meta-rust.git
 # note RUST has been updated to version 1.37.x+, which is incompatible
-# reverting to a known good version 
-cd meta-rust
-git checkout 9487b089ea4779c2b494b17b9254219226efa539
-cd ..
 
 git clone -b $BUILD git://git.openembedded.org/meta-openembedded
 
@@ -71,7 +66,6 @@ cd $TARGETDIR
 echo "BBLAYERS += \"$TARGETDIR/source/meta-intel\"" >> yocto/conf/bblayers.conf
 echo "BBLAYERS += \"$TARGETDIR/source/meta-rust\"" >> yocto/conf/bblayers.conf
 echo "BBLAYERS += \"$TARGETDIR/source/meta-virtualization\"" >> yocto/conf/bblayers.conf
-echo "BBLAYERS += \"$TARGETDIR/source/meta-iotedge\"" >> yocto/conf/bblayers.conf
 echo "BBLAYERS += \"$TARGETDIR/source/meta-openembedded/meta-oe\"" >> yocto/conf/bblayers.conf
 echo "BBLAYERS += \"$TARGETDIR/source/meta-openembedded/meta-networking\"" >> yocto/conf/bblayers.conf
 echo "BBLAYERS += \"$TARGETDIR/source/meta-openembedded/meta-python\"" >> yocto/conf/bblayers.conf
@@ -83,10 +77,7 @@ echo "BBLAYERS_NON_REMOVABLE += \"$TARGETDIR/source/poky/meta-iotedge\"" >> yoct
 echo "MACHINE = \"$MACHINETYPE\"" >> yocto/conf/local.conf
 echo 'DISTRO_FEATURES_append += " systemd wifi virtualization"' >> yocto/conf/local.conf
 echo 'EXTRA_IMAGE_FEATURES += "debug-tweaks ssh-server-dropbear tools-debug tools-sdk"' >> yocto/conf/local.conf
-echo 'IMAGE_INSTALL_append += " iotedge-daemon "' >> yocto/conf/local.conf
-echo 'IMAGE_INSTALL_append += " iotedge-cli "' >> yocto/conf/local.conf
 echo 'IMAGE_INSTALL_append += " docker "' >> yocto/conf/local.conf
-echo 'IMAGE_INSTALL_append += " docker-contrib "' >> yocto/conf/local.conf
 echo 'IMAGE_INSTALL_append += " kernel-modules "' >> yocto/conf/local.conf
 echo 'IMAGE_INSTALL_append += " tpm2-tools "' >> yocto/conf/local.conf
 echo 'IMAGE_INSTALL_append += " tpm2-tss "' >> yocto/conf/local.conf
@@ -102,11 +93,3 @@ echo 'PACKAGECONFIG_append_pn-nativesdk-qemu = " sdl"' >> yocto/conf/local.conf
 
 bitbake $BUILDIMAGE
 
-ls -all -h $TARGETDIR/yocto/tmp/deploy/images/$MACHINETYPE/
-
-az storage container create --name $STORAGECONTAINER
-az storage blob upload --container-name $STORAGECONTAINER --name local.conf --file $TARGETDIR/yocto/conf/local.conf
-az storage blob upload --container-name $STORAGECONTAINER --name bblayers.conf --file $TARGETDIR/yocto/conf/bblayers.conf
-az storage blob upload --container-name $STORAGECONTAINER --name console-latest.log --file $TARGETDIR/yocto/tmp/log/cooker/$MACHINETYPE/console-latest.log
-az storage blob upload --container-name $STORAGECONTAINER --name $BUILDIMAGE-$MACHINETYPE.hddimg --file $TARGETDIR/yocto/tmp/deploy/images/$MACHINETYPE/$BUILDIMAGE-$MACHINETYPE.hddimg
-az storage blob upload --container-name $STORAGECONTAINER --name $BUILDIMAGE-$MACHINETYPE.wic --file $TARGETDIR/yocto/tmp/deploy/images/$MACHINETYPE/$BUILDIMAGE-$MACHINETYPE.wic
