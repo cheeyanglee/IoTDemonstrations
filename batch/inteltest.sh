@@ -8,7 +8,7 @@
 
 BUILD=warrior
 MACHINETYPE=intel-corei7-64
-TARGETDIR=/mnt/$AZ_BATCH_JOB_ID/$AZ_BATCH_TASK_ID
+TARGETDIR=/data/bug13727/
 BUILDIMAGE=core-image-sato
 # note we have a different storage container for each job, and we have to convert it to lower case
 # for storage to work set the environment vars: AZURE_STORAGE_ACCOUNT & AZURE_STORAGE_KEY
@@ -23,11 +23,11 @@ sudo apt update
 sudo apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg gawk wget git-core diffstat unzip texinfo gcc-multilib build-essential chrpath socat cpio python python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev xterm locales
 
 # installing az-client from https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-apt?view=azure-cli-latest
-curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc.gpg > /dev/null
-AZ_REPO=$(lsb_release -cs)
-echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
-sudo apt-get update
-sudo apt-get install azure-cli
+#curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc.gpg > /dev/null
+#AZ_REPO=$(lsb_release -cs)
+#echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
+#sudo apt-get update
+#sudo apt-get install azure-cli
 
 sudo rm -f -r $TARGETDIR
 sudo mkdir -p $TARGETDIR/source
@@ -44,8 +44,14 @@ echo Building Yocto version: $BUILD
 
 cd $TARGETDIR/source
 
-git clone -b $BUILD http://git.yoctoproject.org/git/poky
-git clone -b $BUILD http://git.yoctoproject.org/git/meta-intel
+git clone  --depth=10 -b $BUILD http://git.yoctoproject.org/git/poky
+git clone  --depth=10 -b $BUILD http://git.yoctoproject.org/git/meta-intel
+# apply the patch to meta-intel
+cd meta-intel
+wget -O patch https://github.com/cheeyanglee/poky-contrib/commit/fc8ee3717c0551154dcef4d1458306600e8bfd3a.patch
+git am patch
+cd ..
+
 git clone -b $BUILD https://github.com/Azure/meta-iotedge.git
 git clone -b $BUILD git://git.yoctoproject.org/meta-security
 
@@ -102,11 +108,3 @@ echo 'PACKAGECONFIG_append_pn-nativesdk-qemu = " sdl"' >> yocto/conf/local.conf
 
 bitbake $BUILDIMAGE
 
-ls -all -h $TARGETDIR/yocto/tmp/deploy/images/$MACHINETYPE/
-
-az storage container create --name $STORAGECONTAINER
-az storage blob upload --container-name $STORAGECONTAINER --name local.conf --file $TARGETDIR/yocto/conf/local.conf
-az storage blob upload --container-name $STORAGECONTAINER --name bblayers.conf --file $TARGETDIR/yocto/conf/bblayers.conf
-az storage blob upload --container-name $STORAGECONTAINER --name console-latest.log --file $TARGETDIR/yocto/tmp/log/cooker/$MACHINETYPE/console-latest.log
-az storage blob upload --container-name $STORAGECONTAINER --name $BUILDIMAGE-$MACHINETYPE.hddimg --file $TARGETDIR/yocto/tmp/deploy/images/$MACHINETYPE/$BUILDIMAGE-$MACHINETYPE.hddimg
-az storage blob upload --container-name $STORAGECONTAINER --name $BUILDIMAGE-$MACHINETYPE.wic --file $TARGETDIR/yocto/tmp/deploy/images/$MACHINETYPE/$BUILDIMAGE-$MACHINETYPE.wic
